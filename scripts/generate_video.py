@@ -44,8 +44,8 @@ def parse_args() -> argparse.Namespace:
 
 def split_sentences(narasi: str) -> List[str]:
     sentences = []
-    for line in re.split(r"[\\r\\n]+", (narasi or "").strip()):
-        for part in re.split(r"(?<=[.!?])\\s+", line.strip()):
+    for line in re.split(r"[\r\n]+", (narasi or "").strip()):
+        for part in re.split(r"(?<=[.!?])\s+", line.strip()):
             if part.strip():
                 sentences.append(part.strip())
     if not sentences:
@@ -132,8 +132,8 @@ def concat_clips(clip_paths: List[Path], out_path: Path, workdir: Path) -> None:
         for clip in clip_paths:
             if not clip.is_file() or clip.stat().st_size == 0:
                 raise FileNotFoundError(f"Clip tidak ditemukan atau kosong: {clip}")
-            escaped = str(clip.resolve()).replace("\\", "\\\\").replace("'", "'\\\\''")
-            f.write(f"file '{escaped}'\\n")
+            escaped = str(clip.resolve()).replace("\\", "\\\\").replace("'", "'\\''")
+            f.write(f"file '{escaped}'\n")
 
     tmp_out = out_path.with_name(out_path.stem + ".tmp.mp4")
     try:
