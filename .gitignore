@@ -1,0 +1,7 @@
+output/
+*.pyc
+__pycache__/
+.venv/
+*.mp3
+*.mp4
+!assets/**

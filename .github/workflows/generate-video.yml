@@ -1,0 +1,106 @@
+name: Generate Motion Graphics Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      judul:
+        description: "Judul video"
+        required: true
+        type: string
+      narasi:
+        description: "Naskah narasi (1 kalimat = 1 scene, pisahkan dengan baris baru atau tanda titik)"
+        required: true
+        type: string
+      durasi:
+        description: "Durasi video"
+        required: true
+        type: choice
+        default: "otomatis"
+        options:
+          - "otomatis"
+          - "15"
+          - "30"
+          - "60"
+          - "90"
+          - "120"
+      rasio:
+        description: "Rasio / aspect ratio video"
+        required: true
+        type: choice
+        default: "9:16"
+        options:
+          - "9:16"
+          - "16:9"
+          - "1:1"
+          - "4:5"
+      tts_voice:
+        description: "Suara TTS"
+        required: true
+        type: choice
+        default: "id-ID-ArdiNeural"
+        options:
+          - "id-ID-ArdiNeural"
+          - "id-ID-GadisNeural"
+          - "en-US-GuyNeural"
+          - "en-US-JennyNeural"
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Render video
+        env:
+          JUDUL: ${{ inputs.judul }}
+          NARASI: ${{ inputs.narasi }}
+          DURASI: ${{ inputs.durasi }}
+          RASIO: ${{ inputs.rasio }}
+          TTS_VOICE: ${{ inputs.tts_voice }}
+        run: |
+          python scripts/generate_video.py \
+            --judul "$JUDUL" \
+            --narasi "$NARASI" \
+            --durasi "$DURASI" \
+            --rasio "$RASIO" \
+            --tts-voice "$TTS_VOICE" \
+            --output output/video.mp4
+
+      - name: Upload video as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: motion-video-${{ github.run_number }}
+          path: output/video.mp4
+          retention-days: 14
+
+      - name: Create GitHub Release with video
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: video-${{ github.run_number }}
+          name: ${{ inputs.judul }}
+          body: |
+            Video motion graphics dibuat otomatis lewat GitHub Actions.
+
+            - Judul: ${{ inputs.judul }}
+            - Rasio: ${{ inputs.rasio }}
+            - Durasi: ${{ inputs.durasi }}
+            - Suara TTS: ${{ inputs.tts_voice }}
+          files: output/video.mp4
