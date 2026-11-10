@@ -98,7 +98,7 @@ def render_clip(
     cmd += [
         "-frames:v", str(total_frames),
         "-vf", video_filter,
-        "-af", "apad,atrim=duration={duration:.3f}",
+        "-af", f"apad,atrim=duration={duration:.3f}",
         "-ar", "44100",
         "-ac", "2",
         "-c:v", "libx264",
