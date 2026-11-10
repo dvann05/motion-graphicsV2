@@ -8,11 +8,11 @@ on:
         required: true
         type: string
       narasi:
-        description: "Naskah narasi (1 kalimat = 1 scene, pisahkan dengan baris baru atau tanda titik)"
+        description: "Naskah narasi; pisahkan kalimat dengan baris baru atau tanda baca"
         required: true
         type: string
       durasi:
-        description: "Durasi video"
+        description: "Durasi minimum video"
         required: true
         type: choice
         default: "otomatis"
@@ -24,7 +24,7 @@ on:
           - "90"
           - "120"
       rasio:
-        description: "Rasio / aspect ratio video"
+        description: "Rasio video"
         required: true
         type: choice
         default: "9:16"
@@ -52,21 +52,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
 
-      - name: Install ffmpeg
+      - name: Install ffmpeg and fonts
         run: |
           sudo apt-get update -y
           sudo apt-get install -y ffmpeg fonts-dejavu-core
+          ffmpeg -version
+          ffprobe -version
 
       - name: Install Python dependencies
-        run: pip install -r scripts/requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r scripts/requirements.txt
 
       - name: Render video
         env:
@@ -76,6 +82,7 @@ jobs:
           RASIO: ${{ inputs.rasio }}
           TTS_VOICE: ${{ inputs.tts_voice }}
         run: |
+          mkdir -p output
           python scripts/generate_video.py \
             --judul "$JUDUL" \
             --narasi "$NARASI" \
@@ -84,14 +91,22 @@ jobs:
             --tts-voice "$TTS_VOICE" \
             --output output/video.mp4
 
-      - name: Upload video as artifact
+      - name: Verify generated video
+        run: |
+          test -s output/video.mp4
+          ffprobe -v error \
+            -show_entries stream=codec_type,width,height \
+            -of json output/video.mp4
+
+      - name: Upload video artifact
         uses: actions/upload-artifact@v4
         with:
           name: motion-video-${{ github.run_number }}
           path: output/video.mp4
+          if-no-files-found: error
           retention-days: 14
 
-      - name: Create GitHub Release with video
+      - name: Publish video release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: video-${{ github.run_number }}
@@ -99,8 +114,7 @@ jobs:
           body: |
             Video motion graphics dibuat otomatis lewat GitHub Actions.
 
-            - Judul: ${{ inputs.judul }}
             - Rasio: ${{ inputs.rasio }}
-            - Durasi: ${{ inputs.durasi }}
+            - Durasi minimum: ${{ inputs.durasi }}
             - Suara TTS: ${{ inputs.tts_voice }}
           files: output/video.mp4
