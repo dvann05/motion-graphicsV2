@@ -81,6 +81,7 @@ def render_zoompan_clip(
 ) -> None:
     """Render clip dengan zoom subtle dan fade in/out."""
     width, height = size
+    duration = max(float(duration), 0.5)
     total_frames = max(int(duration * FPS), 1)
     fade_out_start = max(duration - TRANSITION, 0.0)
 
@@ -134,11 +135,17 @@ def render_zoompan_clip(
 
 def concat_clips(clip_paths: List[Path], out_path: Path, workdir: Path) -> None:
     """Gabungkan semua clip ke video final."""
+    if not clip_paths:
+        raise ValueError("Tidak ada clip untuk digabungkan.")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     list_file = workdir / "concat_list.txt"
     with open(list_file, "w", encoding="utf-8") as f:
         for clip in clip_paths:
+            if not clip.exists():
+                raise FileNotFoundError(f"Clip tidak ditemukan sebelum concat: {clip}")
             f.write(f"file '{clip.resolve()}\n'")
+            f.write("\n")
 
     tmp_out = out_path.with_suffix(".tmp.mp4")
     cmd = [
