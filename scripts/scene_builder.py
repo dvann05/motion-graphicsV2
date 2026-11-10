@@ -1,15 +1,13 @@
 """
 scene_builder.py
-Gambar satu frame PNG (background gradient + teks) untuk tiap scene,
-dengan Pillow. Font pakai DejaVu Sans yang sudah terpasang di Ubuntu runner
-(fonts-dejavu-core), atau font custom di assets/fonts/ kalau ada.
+Membuat frame PNG cinematic untuk tiap scene dengan background gradient,
+accent shapes, dan layout teks yang lebih rapi.
 """
 
-import textwrap
 from pathlib import Path
 from typing import Tuple
 
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ASSETS_FONT_DIR = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 FALLBACK_FONT_PATHS = [
@@ -17,13 +15,13 @@ FALLBACK_FONT_PATHS = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ]
 
-# Beberapa kombinasi warna gradient supaya tiap scene tidak monoton
 PALETTES = [
-    ((20, 24, 38), (64, 36, 120)),
-    ((10, 30, 40), (10, 90, 110)),
-    ((40, 15, 30), (120, 40, 60)),
-    ((15, 35, 20), (30, 110, 70)),
-    ((35, 25, 10), (140, 90, 20)),
+    ((12, 18, 32), (70, 40, 120)),
+    ((14, 30, 38), (20, 95, 118)),
+    ((30, 14, 26), (132, 60, 92)),
+    ((20, 28, 18), (42, 118, 74)),
+    ((34, 22, 11), (156, 102, 30)),
+    ((15, 22, 42), (92, 62, 166)),
 ]
 
 
@@ -51,21 +49,23 @@ def _vertical_gradient(size: Tuple[int, int], top_color, bottom_color) -> Image.
     return base.resize((width, height))
 
 
-def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: ImageDraw.ImageDraw):
+def _safe_wrap_text(text: str, font, max_width: int, draw: ImageDraw.ImageDraw, max_lines: int = 4):
     words = text.split()
     lines = []
     current = ""
     for word in words:
-        trial = f"{current} {word}".strip()
-        bbox = draw.textbbox((0, 0), trial, font=font)
+        candidate = f"{current} {word}".strip()
+        bbox = draw.textbbox((0, 0), candidate, font=font)
         if bbox[2] - bbox[0] <= max_width or not current:
-            current = trial
+            current = candidate
         else:
             lines.append(current)
             current = word
+        if len(lines) >= max_lines - 1 and current:
+            break
     if current:
         lines.append(current)
-    return lines
+    return lines[:max_lines]
 
 
 def build_scene_image(
@@ -76,33 +76,41 @@ def build_scene_image(
     is_title: bool = False,
     subtitle: str = "",
 ) -> None:
-    """
-    Render satu PNG scene berisi background gradient + teks utama
-    (dan subtitle kecil kalau ini scene judul).
-    """
+    """Render satu frame scene dengan elemen visual tambahan buat motion graphics."""
     width, height = size
     top_color, bottom_color = PALETTES[palette_index % len(PALETTES)]
-    img = _vertical_gradient(size, top_color, bottom_color)
 
-    # Vignette halus biar teks lebih kebaca
+    bg = _vertical_gradient(size, top_color, bottom_color)
+
     overlay = Image.new("L", size, 0)
     overlay_draw = ImageDraw.Draw(overlay)
-    overlay_draw.rectangle([0, int(height * 0.35), width, height], fill=140)
-    overlay = overlay.filter(ImageFilter.GaussianBlur(80))
+    overlay_draw.rectangle([0, int(height * 0.32), width, height], fill=165)
+    overlay = overlay.filter(ImageFilter.GaussianBlur(55))
     dark = Image.new("RGB", size, (0, 0, 0))
-    img = Image.composite(dark, img, overlay)
+    bg = Image.composite(dark, bg, overlay)
 
-    draw = ImageDraw.Draw(img)
+    draw = ImageDraw.Draw(bg)
 
-    margin = int(width * 0.09)
-    max_text_width = width - margin * 2
+    accent_count = 8
+    for i in range(accent_count):
+        x = int(width * (0.12 + i * 0.1))
+        y = int(height * (0.18 + (i % 3) * 0.18))
+        radius = int(height * (0.03 + (i % 4) * 0.02))
+        alpha = 70 + i * 10
+        draw.ellipse(
+            (x - radius, y - radius, x + radius, y + radius),
+            outline=(255, 255, 255, alpha),
+            width=2,
+        )
 
-    font_size = int(height * (0.07 if is_title else 0.055))
+    line_margin = int(width * 0.095)
+    text_width = width - (line_margin * 2)
+    font_size = int(height * (0.072 if is_title else 0.055))
     font = _load_font(font_size)
-    lines = _wrap_text(text, font, max_text_width, draw)
+    lines = _safe_wrap_text(text, font, text_width, draw, max_lines=4)
 
     line_height = int(font_size * 1.25)
-    total_text_height = line_height * len(lines)
+    total_text_height = len(lines) * line_height
     start_y = (height - total_text_height) // 2
 
     for i, line in enumerate(lines):
@@ -110,7 +118,6 @@ def build_scene_image(
         line_width = bbox[2] - bbox[0]
         x = (width - line_width) // 2
         y = start_y + i * line_height
-        # shadow
         draw.text((x + 3, y + 3), line, font=font, fill=(0, 0, 0, 180))
         draw.text((x, y), line, font=font, fill=(255, 255, 255))
 
@@ -123,4 +130,4 @@ def build_scene_image(
         draw.text((x, y), subtitle, font=sub_font, fill=(230, 230, 230))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    img.save(out_path)
+    bg.save(out_path)
